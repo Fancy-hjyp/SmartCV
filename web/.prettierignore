@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.nuxt/
+public/
+
+# System files
+*.log
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+
+# Environment files
+.env*
+
+# Cache files
+.cache/
+coverage/
+
+# Nuxt/Vue specific
+.nuxt
+.output
