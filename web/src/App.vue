@@ -4,12 +4,18 @@
         <header class="app-header">
             <div class="nav-container">
                 <h1 class="app-title">
-                    <router-link to="/" class="title-link">Template-VUE</router-link>
+                    <router-link to="/" class="title-link">SmartCV</router-link>
                 </h1>
                 <nav class="main-nav">
                     <ul class="nav-list">
+                        <li class="nav-item">
+                            <router-link to="/templates">模板广场</router-link>
+                        </li>
                         <li class="nav-item" :class="{ active: route.path === '/' }">
-                            <router-link to="/">首页</router-link>
+                            <router-link to="/">简历排版优化</router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/">AI模拟面试</router-link>
                         </li>
                     </ul>
                 </nav>
