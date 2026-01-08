@@ -1,22 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
-import ResumeOptimization from '../views/ResumeOptimization.vue';
 
 const routes = [
   {
     path: '/',
-    name: 'ResumeOptimization',
+    name: 'Home',
     component: Home,
-  },
-  {
-    path: '/resume-optimization',
-    name: 'ResumeOptimization',
-    component: ResumeOptimization,
   },
   {
     // Catch all unmatched routes and redirect to home
     path: '/:pathMatch(.*)*',
-    redirect: '/resume-optimization',
+    redirect: '/',
   },
 ];
 
