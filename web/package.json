@@ -17,18 +17,23 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@langchain/core": "^0.3.26",
+    "@langchain/openai": "^0.3.17",
     "axios": "^1.13.2",
     "element-plus": "^2.11.7",
     "highlight.js": "^11.11.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
     "markdown-it": "^14.1.0",
+    "pdfjs-dist": "^5.4.530",
     "pinia": "^2.3.1",
     "vue": "^3.5.22",
     "vue-router": "^4.6.3"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^20.0.0",
+    "@types/pdfjs-dist": "^2.10.377",
     "@typescript-eslint/eslint-plugin": "^7.13.1",
     "@typescript-eslint/parser": "^7.13.1",
     "@vitejs/plugin-vue": "^6.0.1",

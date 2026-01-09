@@ -362,9 +362,10 @@ const handleCloseResumeDialog = () => {
   showResumeDialog.value = false
 }
 
-const handleConfirmResume = () => {
-  showResumeDialog.value = false
-  ElMessage.success('简历上传成功')
+const handleConfirmResume = (content: string) => {
+  resumeMarkdown.value = content;
+  showResumeDialog.value = false;
+  ElMessage.success('简历上传成功');
 }
 
 const handleCloseJDInputDialog = () => {

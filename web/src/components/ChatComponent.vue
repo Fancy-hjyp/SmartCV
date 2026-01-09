@@ -10,15 +10,42 @@
         v-for="(message, index) in chatMessages" 
         :key="index" 
         :class="['message', message.role]"
+        @mouseenter="showCopyBtn = index"
+        @mouseleave="showCopyBtn = -1"
       >
         <div class="message-avatar">
           <el-avatar :icon="message.role === 'user' ? User : ChatLineRound" :size="30" />
         </div>
         <div class="message-content">
           <div class="message-bubble">
-            <div v-html="message.content"></div>
+            <div v-if="message.role === 'assistant'" v-html="renderMarkdown(message.content)"></div>
+            <div v-else>{{ message.content }}</div>
+            <el-button 
+              v-show="showCopyBtn === index" 
+              class="copy-btn" 
+              type="info" 
+              size="small" 
+              :icon="CopyDocument"
+              @click="copyMessage(message.content)"
+            />
           </div>
           <div class="message-time">{{ message.timestamp }}</div>
+        </div>
+      </div>
+      
+      <!-- 显示加载状态 -->
+      <div v-if="isLoading" class="message assistant">
+        <div class="message-avatar">
+          <el-avatar :icon="ChatLineRound" :size="30" />
+        </div>
+        <div class="message-content">
+          <div class="message-bubble">
+            <div class="typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -32,23 +59,9 @@
         placeholder="向AI助手描述您想优化的内容，例如：'帮我优化技能部分'、'让我的自我评价更吸引人'"
         maxlength="500"
         show-word-limit
+        :disabled="isLoading"
+        @keyup.enter.exact="handleEnter"
       />
-      <div class="input-controls">
-        <el-button 
-          type="primary" 
-          :icon="MagicStick" 
-          @click="sendToAI"
-          :disabled="!aiInput.trim()"
-        >
-          发送
-        </el-button>
-        <el-button 
-          :icon="DocumentCopy" 
-          @click="applyAIOptimization"
-        >
-          应用AI优化
-        </el-button>
-      </div>
     </div>
   </div>
 </template>
@@ -58,13 +71,25 @@ import { ref, onMounted } from 'vue'
 import { 
   ChatLineRound,
   User,
-  MagicStick,
-  DocumentCopy
+  CopyDocument
 } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { requestAICompletion } from '@/utils/aiRequest'
+import { HumanMessage, SystemMessage, AIMessage, BaseMessage } from "@langchain/core/messages"
+import { formatResumeOptimizationPrompt } from '@/prompts/resumeOptimization'
+import MarkdownIt from 'markdown-it';
+
+// 创建 MarkdownIt 实例
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true
+});
 
 // 定义组件的props和emits
 const props = defineProps<{
   resumeMarkdown: string
+  jobDescription?: string
 }>()
 
 const emits = defineEmits<{
@@ -80,10 +105,36 @@ const chatMessages = ref([
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 ])
+const showCopyBtn = ref(-1)
+const isLoading = ref(false)
+
+// 渲染markdown内容
+const renderMarkdown = (content: string) => {
+  return md.render(content);
+}
+
+// 构建系统提示词
+const buildSystemPrompt = (resumeContent: string, jobDescription?: string, userInput: string = '') => {
+  return formatResumeOptimizationPrompt({
+    resumeContent,
+    jobDescription,
+    userInput
+  });
+}
+
+// 处理回车发送消息
+const handleEnter = (event: KeyboardEvent) => {
+  if (event.shiftKey) {
+    // 如果按下Shift键，则不触发发送，允许换行
+    return
+  }
+  event.preventDefault() // 阻止默认的换行行为
+  sendToAI()
+}
 
 // 发送消息到AI
-const sendToAI = () => {
-  if (!aiInput.value.trim()) return
+const sendToAI = async () => {
+  if (!aiInput.value.trim() || isLoading.value) return
   
   // 添加用户消息到聊天
   const userMessage = {
@@ -97,55 +148,64 @@ const sendToAI = () => {
   // 清空输入框
   aiInput.value = ''
   
-  // 模拟AI回复
-  setTimeout(() => {
-    const aiResponse = {
+  // 设置加载状态
+  isLoading.value = true
+  
+  try {
+    // 构建消息列表
+    const messages: BaseMessage[] = [
+      new SystemMessage(buildSystemPrompt(props.resumeMarkdown, props.jobDescription, userMessage.content))
+    ];
+    
+    // 添加历史对话记录
+    chatMessages.value.slice(1).forEach(msg => {
+      if (msg.role === 'user') {
+        messages.push(new HumanMessage(msg.content));
+      } else if (msg.role === 'assistant') {
+        messages.push(new AIMessage(msg.content));
+      }
+    });
+
+    console.log('消息列表:', messages)
+    
+    // 调用大模型API
+    const aiResponse = await requestAICompletion({
+      messages
+    })
+    
+    // 添加AI回复到聊天
+    const aiMessage = {
       role: 'assistant',
-      content: getAIResponse(userMessage.content),
+      content: aiResponse,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
+
+    console.log('AI回复:', aiMessage.content)
     
-    chatMessages.value.push(aiResponse)
-  }, 1000)
-}
-
-// 根据用户输入生成AI回复
-const getAIResponse = (userInput: string) => {
-  // 简单的规则匹配，实际项目中应该调用AI API
-  if (userInput.includes('技能') || userInput.includes('技术')) {
-    return '我建议将技能按熟练程度分层展示，并量化您的技术成果。例如："熟练掌握Vue.js、React等前端框架，有3年以上实际项目经验，能够构建高性能、可维护的前端应用"。'
-  } else if (userInput.includes('自我评价') || userInput.includes('评价')) {
-    return '好的自我评价应该突出个人特色和价值。建议强调您的核心竞争力和过往成就，比如："具备丰富的前端开发经验，擅长解决复杂技术问题，曾主导多个大型项目前端架构设计，注重代码质量和团队协作"。'
-  } else if (userInput.includes('项目') || userInput.includes('经验')) {
-    return '项目经验部分应量化成果，突出贡献。建议包含具体数据，如："负责XX项目前端开发，通过性能优化使页面加载速度提升40%，用户体验显著改善"。'
-  } else if (userInput.includes('优化') || userInput.includes('改')) {
-    return '针对您的简历，我建议: 1.使用动词开头描述工作经历 2.量化工作成果 3.突出与目标职位相关的技能和经验 4.简化冗余信息，突出重点。'
-  } else {
-    return '我已经收到您的请求，正在分析您的简历内容。对于简历优化，我建议从以下几个方面入手：1.突出核心技能和经验；2.量化工作成果；3.优化语言表达，使用更专业的术语。'
+    chatMessages.value.push(aiMessage)
+  } catch (error) {
+    console.error('发送到AI失败:', error)
+    const errorMessage = {
+      role: 'assistant',
+      content: '很抱歉，AI助手暂时无法响应，请稍后重试。',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+    chatMessages.value.push(errorMessage)
+  } finally {
+    // 结束加载状态
+    isLoading.value = false
   }
 }
 
-// 应用AI优化
-const applyAIOptimization = () => {
-  // 模拟AI优化
-  let optimizedResume = props.resumeMarkdown
-  
-  // 这里可以集成真实的AI优化逻辑
-  // 暂时使用模拟数据
-  if (optimizedResume.includes('张三')) {
-    optimizedResume = optimizedResume.replace(/张三/g, '求职者')
-    optimizedResume = optimizedResume.replace(/zhangsan@example.com/g, 'contact@example.com')
+// 复制消息内容
+const copyMessage = async (content: string) => {
+  try {
+    await navigator.clipboard.writeText(content)
+    ElMessage.success('已复制到剪贴板')
+  } catch (err) {
+    console.error('复制失败:', err)
+    ElMessage.error('复制失败')
   }
-  
-  // 添加AI响应到聊天
-  chatMessages.value.push({
-    role: 'assistant',
-    content: '已为您应用AI优化建议，对简历中的基本信息进行了优化处理。',
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  })
-
-  // 触发事件，将优化后的内容传递给父组件
-  emits('apply-optimization', optimizedResume)
 }
 </script>
 
@@ -188,6 +248,8 @@ const applyAIOptimization = () => {
   display: flex;
   gap: 12px;
   max-width: 85%;
+  position: relative;
+  font-size: 12px;
 }
 
 .message.user {
@@ -205,25 +267,37 @@ const applyAIOptimization = () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  width: 100%;
 }
 
 .message-bubble {
-  padding: 14px 18px;
-  border-radius: 18px;
+  padding: 6px 6px;
+  border-radius: 4px;
   position: relative;
+}
+
+.message-bubble p {
+  margin: 0;
+}
+
+.message-bubble .copy-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  transform: scale(0.8);
 }
 
 .message.assistant .message-bubble {
   background: #f0f4f8;
   border: 1px solid #e2e6eb;
-  border-radius: 18px;
+  border-radius: 8px;
   color: #333;
 }
 
 .message.user .message-bubble {
   background: #409eff;
   color: white;
-  border-radius: 18px;
+  border-radius: 8px;
 }
 
 .message-time {
@@ -251,16 +325,35 @@ const applyAIOptimization = () => {
   padding: 14px;
 }
 
-.input-controls {
+.typing-indicator {
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
+  align-items: center;
 }
 
-.input-controls .el-button {
-  border-radius: 18px;
-  font-weight: 500;
-  height: 40px;
-  padding: 0 20px;
+.typing-indicator span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #9ca3af;
+  margin: 0 2px;
+  animation: bounce 1.3s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
 }
 </style>
